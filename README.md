@@ -1,107 +1,249 @@
-# 📌Introduction
+# Terraform-Jenkins-Deployment-for-the-Jarvis-Voice-Assistant
+![](./img/photo_2025-11-30_11-17-11.jpg)
+This **README.md** gives you a clean, simple, and glamourous guide to
+deploy the\
+ **Jarvis Desktop Voice Assistant**\
+using **Terraform**, **AWS EC2**, **Jenkins**, and **GitHub Webhooks**.
 
-<img src="https://github.com/kishanrajput23/Jarvis-Desktop-Voice-Assistant/blob/main/Images/Cover_pic.jpg" alt="">
+------------------------------------------------------------------------
 
-- A virtual assistant, also called an AI assistant or digital assistant, is an application program that understands natural language voice commands and completes tasks for the user. The whole concept based on how can we make our life easier or how can we automate the things by just using our voice command. When the project is being executed then first of all it greets the user as per the time. After that it just listen your command in form of voice and just that that thing according to your command.
+#  Overview
 
-- It is implemented in **“PYTHON Programming Language”** in which implementation is very easy. For every sort of work there is module present in python which makes the thing very easy and effective to do. It is user friendly and easy to understandable for beginner.
+This project automates complete deployment using:
 
-# 📌Moules/Libraries Used
+1.  **Terraform** → Create EC2 + Security Group + Setup\
+2.  **EC2 Setup** → Install Jenkins automatically\
+3.  **GitHub + Jenkins** → Webhook-based CI/CD\
+4.  **SSH Credentials** → Secure deployment\
+5.  **Jenkins Pipeline** → Auto-deploy Jarvis on push
 
-### 🔸Pyttsx3
-- A python library that will help us to convert text to speech. In short, it is a text-to-speech library.
-- It works offline, and it is compatible with Python 2 as well as Python 3.
+------------------------------------------------------------------------
 
-### 🔸Datetime
-- To provide current or live time to Assistant.
-- Used for greeting user according to time.
+#  1. Terraform Setup
 
-### 🔸Speech Recognition
-- Library for performing speech recognition, with support for several engines and APIs, online and offline.
-- Used for taking input from microphone as a source to perform tasks.
+##  File Structure
 
-### 🔸Wikipedia
-- Wikipedia is a Python library that makes it easy to access and parse data from Wikipedia.
-- It helps the user to get results for a particular query or search.
+-   `provider.tf` → AWS region\
+-   `variables.tf` → Variables (ami, instance type, key, CIDR)\
+-   `main.tf` → EC2 + SG + KeyPair\
+-   `outputs.tf` → Output EC2 Public IP\
+-   `user_data.sh` → Bootstrap installation
 
-### 🔸Web Browser
-- The web browser module provides a high-level interface to allow displaying Web-based documents to users
-- Under most circumstances, simply calling the open() function from this module will do the right thing.
+------------------------------------------------------------------------
 
-### 🔸OS
-- The OS module in Python provides functions for interacting with the operating system.
-- This module provides a portable way of using operating system-dependent functionality.
+##  provider.tf
 
-### 🔸Random
-- We can generate random numbers in Python by using random module.
-- These are pseudo-random number as the sequence of number generated depends on the seed.
+``` hcl
+provider "aws" {
+  region = var.aws_region
+}
+```
 
-### 🔸PyAutoGui
-- Pyautogui is a library that allows you to control the mouse and keyboard to do various things.
-- In this project we use this library for taking screenshots of the screen.
+##  variables.tf
 
-# 📌Features 
+``` hcl
+variable "aws_region" { default = "ap-south-1" }
+variable "ami" {}
+variable "instance_type" { default = "t2.micro" }
+variable "key_name" {}
+variable "allowed_cidr" { default = "0.0.0.0/0" }
+```
 
-### 👉 1. Greet the user
+##  main.tf
 
-<img src="https://github.com/kishanrajput23/Jarvis-Desktop-Voice-Assistant/blob/main/Images/Picture1.png" alt="">
+``` hcl
+resource "aws_key_pair" "jarvis" {
+  key_name   = var.key_name
+  public_key = file("~/.ssh/id_rsa.pub")
+}
 
-### 👉 2. Tell current time & date
+resource "aws_security_group" "jenkins_sg" {
+  name = "jenkins_sg"
 
-<img src="https://github.com/kishanrajput23/Jarvis-Desktop-Voice-Assistant/blob/main/Images/Picture2.png" alt="">
+  ingress {
+    from_port = 22
+    to_port   = 22
+    protocol  = "tcp"
+    cidr_blocks = [var.allowed_cidr]
+  }
 
-### 👉 3. Search something on Wikipedia
+  ingress {
+    from_port = 8080
+    to_port   = 8080
+    protocol  = "tcp"
+    cidr_blocks = [var.allowed_cidr]
+  }
 
-<img src="https://github.com/kishanrajput23/Jarvis-Desktop-Voice-Assistant/blob/main/Images/Picture3.png" alt="">
+  egress {
+    from_port = 0
+    to_port   = 0
+    protocol  = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
 
-### 👉 4. Open any Website
+resource "aws_instance" "jarvis" {
+  ami           = var.ami
+  instance_type = var.instance_type
+  key_name      = aws_key_pair.jarvis.key_name
+  vpc_security_group_ids = [aws_security_group.jenkins_sg.id]
+  user_data = file("user_data.sh")
 
-<img src="https://github.com/kishanrajput23/Jarvis-Desktop-Voice-Assistant/blob/main/Images/Picture4.png" width="480"/> <img src="https://github.com/kishanrajput23/Jarvis-Desktop-Voice-Assistant/blob/main/Images/Picture5.png" width="480"/>
+  tags = {
+    Name = "jarvis-deploy"
+  }
+}
 
-### 👉 5. Plays Music
+output "public_ip" {
+  value = aws_instance.jarvis.public_ip
+}
+```
 
-<img src="https://github.com/kishanrajput23/Jarvis-Desktop-Voice-Assistant/blob/main/Images/Picture6.png" alt="">
+------------------------------------------------------------------------
 
-### 👉 6. Can search anything on Google
+##  user_data.sh
 
-<img src="https://github.com/kishanrajput23/Jarvis-Desktop-Voice-Assistant/blob/main/Images/Picture7.png" width="480"/> <img src="https://github.com/kishanrajput23/Jarvis-Desktop-Voice-Assistant/blob/main/Images/Picture8.png" width="480"/> 
+``` bash
+#!/bin/bash
+apt update -y
+apt upgrade -y
+apt install -y git python3 python3-venv python3-pip rsync curl openjdk-11-jdk
+mkdir -p /home/ubuntu/jarvis
+chown -R ubuntu:ubuntu /home/ubuntu/jarvis
+```
 
-### 👉 7. Take important note in text file
+------------------------------------------------------------------------
 
-<img src="https://github.com/kishanrajput23/Jarvis-Desktop-Voice-Assistant/blob/main/Images/Picture9.png" alt="">
+#  Deploy Terraform
 
-### 👉 8. Take Screenshots and save it with custom filename
+``` bash
+terraform init
+terraform plan -var 'ami=ami-xxxxx' -var 'key_name=mykey'
+terraform apply
+```
 
-<img src="https://github.com/kishanrajput23/Jarvis-Desktop-Voice-Assistant/blob/main/Images/Picture10.png" alt="">
+------------------------------------------------------------------------
 
-### 👉 9. Finally make Assistant offline
+#  2. Jenkins Installation on EC2
 
-<img src="https://github.com/kishanrajput23/Jarvis-Desktop-Voice-Assistant/blob/main/Images/Picture11.png" alt="">
+SSH into instance:
 
-# 📌WHY TO USE JARVIS?
+``` bash
+ssh -i key.pem ubuntu@PUBLIC_IP
+```
 
-1. It fulfils the own personnel desktop voice assistant.
+Install Jenkins:
 
-2. It has an easy to install and use interface.
+``` bash
+sudo apt update
+sudo apt install -y openjdk-11-jdk
+wget -q -O - https://pkg.jenkins.io/debian-stable/jenkins.io.key | sudo apt-key add -
+sudo sh -c 'echo deb https://pkg.jenkins.io/debian-stable binary/ > /etc/apt/sources.list.d/jenkins.list'
+sudo apt update
+sudo apt install -y jenkins
+sudo systemctl enable jenkins
+sudo systemctl start jenkins
+```
 
-3. It accepts inputs even through voice or keyboard.
+Access Jenkins:
 
-4. It automates tedious tasks like deployment, unit testing through a single command.
+    http://PUBLIC_IP:8080
 
-# 📌Advantages / Disadvantages 
+Initial Password:
 
-|  **S.No.**  |  **Advantages**  | **Disadvantages**  |
-|:-----------:|:----------------:|:------------------:|
-|  **1.**  |  Secure |  Costly  |
-|  **2.**  |  Easy to use |  Expensive equipments  |
-|  **3.**  |  Custom commands  |  Limited language support  |
-|  **4.**  |  Helpful for disabled ones  |  It cannot work in noisy environments  |
-|  **5.**  |  Can't work with variety of commands  |  Can't use for more than one person at a time  |
+``` bash
+sudo cat /var/lib/jenkins/secrets/initialAdminPassword
+```
+![](./img/jarvis1.png)
+------------------------------------------------------------------------
 
-# 📌Conclusion
+#  3. Jenkinsfile for Deployment
 
-- Through this voice assistant, we have automated various services using a single line command. It eases most of the tasks of the user like searching the web, retrieving weather forecast details, vocabulary help and medical related queries. 
+``` groovy
+pipeline {
+  agent any
+  environment {
+    REMOTE_USER = "ubuntu"
+    REMOTE_HOST = "3.110.121.35"
+    REMOTE_DIR  = "/home/ubuntu/jarvis"
+    CRED_ID     = "jarvis-key"
+  }
 
-- We aim to make this project a complete server assistant and make it smart enough to act as a replacement for a general server administration. The future plans include integrating Jarvis with mobile using React Native to provide a synchronized experience between the two connected devices. 
+  stages {
+    stage('Checkout') {
+      steps {
+        git branch: 'main', url: 'https://github.com/<youruser>/Jarvis-Desktop-Voice-Assistant.git'
+      }
+    }
 
-- Further, in the long run, Jarvis is planned to feature auto deployment supporting elastic beanstalk, backup files, and all operations which a general Server Administrator does. The functionality would be seamless enough to replace the Server Administrator with Jarvis. 
+    stage('Package & Transfer') {
+      steps {
+        sshagent(credentials: ["${CRED_ID}"]) {
+          sh '''
+            ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} "mkdir -p ${REMOTE_DIR}"
+            rsync -avz --delete --exclude='.git' ./ ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/
+          '''
+        }
+      }
+    }
+
+    stage('Remote: Setup & Restart') {
+      steps {
+        sshagent(credentials: ["${CRED_ID}"]) {
+          sh "ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} 'cd ${REMOTE_DIR} && ./setup_and_restart.sh'"
+        }
+      }
+    }
+  }
+}
+```
+
+------------------------------------------------------------------------
+
+#  4. GitHub Webhook Setup
+
+Go to:\
+**GitHub → Repo → Settings → Webhooks → Add Webhook**
+
+Payload URL:
+
+    http://JENKINS_IP:8080/github-webhook/
+
+Content Type → `application/json`\
+Trigger → **Just Push**
+
+------------------------------------------------------------------------
+
+#  5. Add Jenkins SSH Credentials
+
+Jenkins → Credentials → Global → Add Credentials
+
+-   Type → SSH Username with Private Key\
+-   Username → ubuntu\
+-   Private Key → Paste PEM\
+-   ID → `ubuntu`
+![](./img/jarvis3.png)
+------------------------------------------------------------------------
+
+#  6. Deployment
+
+Create Job → Pipeline from SCM → Select Repo → Add Jenkinsfile Path
+
+Every push = automatic deployment.
+![](./img/jarvis2.png)
+------------------------------------------------------------------------
+
+#  Final Checklist
+
+  Task                           Status
+  ------------------------------ --------
+  Terraform EC2 Created          ✔️
+  Jenkins Installed              ✔️
+  Jenkinsfile Added              ✔️
+  Webhook Connected              ✔️
+  SSH Credentials Added          ✔️
+  Automatic Deployment Working   ✔️
+
+------------------------------------------------------------------------
+
+ **Your README is now polished, simple, and professional.**
